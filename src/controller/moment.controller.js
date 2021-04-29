@@ -1,7 +1,11 @@
+const fs = require("fs")
+
 const { create, getDetailById, getDetailByPage, patchMomentById, delMomentById } = require("../service/moment.service")
 const { verifyPermission } = require("../service/auth.service")
 const { PERMISSION_DENIED, RECORD_NOT_FOUND } = require("../constants/err-types")
 const { addLabelForMoment, hasLabel, createLabelForMoment } = require("../service/comment.service")
+const { getFileInfo } = require("../service/file.service")
+const { PICTURE_PATH } = require("../constants/file-path")
 class momentController {
   // 新建
   async create(ctx, next) {
@@ -70,6 +74,18 @@ class momentController {
       }
     }
     ctx.body = "success"
+  }
+  async fileInfo(ctx, next) {
+    let { filename } = ctx.params
+    const fileInfo = await getFileInfo(filename)
+    const { type } = ctx.query
+    const types = ['large', 'small', 'middle']
+    if (types.some(i => i === type)) {
+      filename = filename + '-' + type
+    }
+
+    ctx.response.set('content-type', fileInfo.mimetype)
+    ctx.body = fs.createReadStream(`${PICTURE_PATH}/${filename}`)
   }
 }
 

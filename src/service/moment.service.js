@@ -1,6 +1,6 @@
 const connection = require("../app/db")
 const table_name = require("../constants/table-name")
-
+const { APP_HOST, APP_PORT } = require("../app/config")
 class MomentService {
   async create({ title, content, user_id }) {
     const statement = `INSERT INTO ${table_name.TABLE_MOMENT} ( title, content, user_id ) VALUES ( ?,?,? );`
@@ -16,32 +16,44 @@ class MomentService {
       m.content content,
       m.createAt createTime,
       m.updateAt updateTime,
-      JSON_OBJECT ( 'id', u.id, 'name', u.name ) author,
-      JSON_ARRAYAGG( JSON_OBJECT('id',l.id,'name',l.name)) labels,
+      JSON_OBJECT ( 'id', u.id, 'name', u.name,'avatarUrl',u.avatar_url ) author,
+      (SELECT JSON_ARRAYAGG(CONCAT('${APP_HOST}:${APP_PORT}/moment/images/',f.filename)) FROM ${table_name.TABLE_FILE} f WHERE m.id = f.moment_id ) images,
+    IF
+      (
+        COUNT( l.id ),
+        JSON_ARRAYAGG ( JSON_OBJECT ( 'id', l.id, 'name', l.name ) ),
+        NULL 
+      ) labels,
+      (
+      SELECT
       IF
         (
-          COUNT(c.id),
+          COUNT( c.id ),
           JSON_ARRAYAGG (
             JSON_OBJECT (
             'id',c.id,
             'content',c.content,
             'commentId',c.comment_id,
             'updateTime',c.createAt,
-            'user',JSON_OBJECT ( 'id', cu.id, 'name', cu.name ) 
+            'user',JSON_OBJECT ( 'id', cu.id, 'name', cu.name,"avatarUrl",cu.avatar_url ) 
             ) 
           ),
-          NULL
-        ) comments 
+          NULL 
+      ) comments
+    FROM
+      ${table_name.TABLE_COMMENT} c
+      LEFT JOIN ${table_name.TABLE_USER} cu ON c.user_id = cu.id 
+    WHERE
+      c.moment_id = m.id 
+      ) comments 
     FROM
       ${table_name.TABLE_MOMENT} m
       LEFT JOIN ${table_name.TABLE_USER} u ON m.user_id = u.id
-      LEFT JOIN ${table_name.TABLE_COMMENT} c ON c.moment_id = m.id
-      LEFT JOIN ${table_name.TABLE_USER} cu ON c.user_id = cu.id
       LEFT JOIN ${table_name.TABLE_LABEL_MOMENT} ml ON m.id = ml.moment_id
       LEFT JOIN ${table_name.TABLE_LABEL} l ON ml.label_id = l.id 
     WHERE
-      m.id = ?
-    GROUP BY 
+      m.id = ? 
+    GROUP BY
       m.id
     `
     const [result] = await connection.execute(statement, [id])
@@ -56,7 +68,7 @@ class MomentService {
       m.content content,
       m.createAt createTime,
       m.updateAt updateTime,
-      JSON_OBJECT ( 'id', u.id, 'name', u.NAME ) USER,
+      JSON_OBJECT ( 'id', u.id, 'name', u.name, "avatarUrl",u.avatar_url ) USER,
       ( SELECT COUNT( * ) FROM ${table_name.TABLE_COMMENT} t WHERE t.moment_id = m.id ) commentCount 
     FROM
       ${table_name.TABLE_MOMENT} m
